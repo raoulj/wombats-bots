@@ -21,7 +21,7 @@ def getArena():
 
 global getTile
 def getTile(x, y):
-    return getArena()[y][x] # TODO: reversed, investigate
+    return getArena()[y][x] # reversed (y, x) works, probably given like that
 
 
 global getPlayerTile
@@ -208,29 +208,34 @@ def getValueTimeRatio(x, y, tile):
     return tileValue / float(pathTime)
 
 
+# find path ahead, defaults to tile already found
 global search
-def search(x, y, maxTile, maxEv):
+def search(x, y, maxTile, maxRatio):
 
-    def valid(coord):
+    # tile isValid if not already searched, not in frontier (isValid possible moves)
+    # and not fog/wall/poison
+    def isValid(coord):
         global frontier
         global searched
         tile = getTile(coord[0], coord[1])
         return coord not in searched and coord not in frontier and not \
             isFog(tile) and not isWall(tile) and not isPoison(tile)
 
-    def tryAdd(dx, dy, backVector):
-        if valid([dx, dy]):
+
+    def addIfValid(dx, dy, backVector):
+        if isValid([dx, dy]):
             global frontier
             global fromTile
             frontier.append([dx, dy])
             fromTile[dx][dy] = backVector
 
-    searchTile = getTile(x, y)
-    searchTileEv = getValueTimeRatio(x, y, searchTile)
 
-    if searchTileEv > maxEv or maxTile == []:
-        maxEv = searchTileEv
-        maxTile = [x,y]
+    searchTile = getTile(x, y)
+    searchTileRatio = getValueTimeRatio(x, y, searchTile)
+
+    if searchTileRatio > maxRatio or maxTile == []:
+        maxRatio = searchTileRatio
+        maxTile = [x, y]
 
     global frontier
     global searched
@@ -238,20 +243,23 @@ def search(x, y, maxTile, maxEv):
     global height
     searched.append([x, y])
 
+    # try all tiles around for possible moves
     if x > 0:
-        tryAdd(x-1, y, [1, 0])
+        addIfValid(x - 1, y, [1, 0])
     if x < width - 1:
-        tryAdd(x+1, y, [-1, 0])
+        addIfValid(x + 1, y, [-1, 0])
     if y > 0:
-        tryAdd(x, y-1, [0, 1])
+        addIfValid(x, y - 1, [0, 1])
     if y < height - 1:
-        tryAdd(x, y+1, [0, -1])
+        addIfValid(x, y + 1, [0, -1])
 
+    # no possible moves
     if len(frontier) == 0:
         return maxTile
 
+    #TODO: investigate
     nextTile = frontier.pop(0)
-    return search(nextTile[0], nextTile[1], maxTile, maxEv)
+    return search(nextTile[0], nextTile[1], maxTile, maxRatio)
 
 def wombat(state, time_left):
     global bored
@@ -268,8 +276,9 @@ def wombat(state, time_left):
     global log
     global shotDamage
 
-    # TODO: investigate/replace
     currState = state
+
+    # reset fromTile
     for i in range(width):
         fromTile.append([])
         for j in range(height):
@@ -290,27 +299,27 @@ def wombat(state, time_left):
     frontier = []
     searched = []
 
-    #Calculate ev of our stored target using the remainder of our saved path
-    currTargetTile = 0
-    targetEv = 0
+    # calculate ratio of stored target using the remainder of saved path
+    curTargetTile = 0
+    targetRatio = 0
     if len(targetCoords) > 1 and len(path) > 0:
-        currTargetTile = getTile(targetCoords[0], targetCoords[1])
-        targetEv = getValue(targetCoords[0], targetCoords[1], targetTile) \
+        curTargetTile = getTile(targetCoords[0], targetCoords[1])
+        targetRatio = getValue(targetCoords[0], targetCoords[1], targetTile) \
                    / float(getPathTime(path, targetCoords, getOrientationVector()))
 
-    #Perform search and calculate ev of max value target
+    # search and calculate ratio of max value target
     newTargetCoords = search(getCoords()[0], getCoords()[1], [], 0)
     newTargetTile = getTile(newTargetCoords[0], newTargetCoords[1])
-    newTargetEv = getValueTimeRatio(newTargetCoords[0], newTargetCoords[1], newTargetTile)
+    newTargetRatio = getValueTimeRatio(newTargetCoords[0], newTargetCoords[1], newTargetTile)
 
-    log['targetEv'] = targetEv
-    log['newSearchEv'] = newTargetEv
+    log['targetRatio'] = targetRatio
+    log['newSearchRatio'] = newTargetRatio
 
     # if no path and see something more valuable, or target is no longer valid
     # fog and smoke count as valid since target is likely still there
-    if len(path) == 0 or len(targetCoords) < 2 or newTargetEv > targetEv or \
-            (getType(currTargetTile) != getType(targetTile) and not
-            isSmoke(currTargetTile) and not isFog(currTargetTile)):
+    if len(path) == 0 or len(targetCoords) < 2 or newTargetRatio > targetRatio or \
+            (getType(curTargetTile) != getType(targetTile) and not
+            isSmoke(curTargetTile) and not isFog(curTargetTile)):
         targetCoords = newTargetCoords
         targetTile = newTargetTile
         if targetCoords != getCoords() and len(targetCoords) > 1:
