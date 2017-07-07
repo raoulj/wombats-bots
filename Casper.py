@@ -257,7 +257,6 @@ def search(x, y, maxTile, maxRatio):
     if len(frontier) == 0:
         return maxTile
 
-    #TODO: investigate
     nextTile = frontier.pop(0)
     return search(nextTile[0], nextTile[1], maxTile, maxRatio)
 
